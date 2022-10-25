@@ -1,15 +1,16 @@
 import PostModel from "../models/Post.js"
+import { frequencySort } from "../utils/frequencySort.js"
 
 export const getLastTags = async (req, res) => {
   try {
-    const posts = await PostModel.find().limit(5).exec()
+    const posts = await PostModel.find().exec()
 
-    const tags = posts
-      .map((obj) => obj.tags)
-      .flat()
+    const tags = posts.map((obj) => obj.tags).flat()
+    const sortedTags = frequencySort(tags)
+      .filter((value, index, arr) => arr.indexOf(value) === index)
       .slice(0, 5)
 
-    res.json(tags)
+    res.json(sortedTags)
   } catch (e) {
     console.log(e)
     res.status(500).json({
@@ -18,9 +19,45 @@ export const getLastTags = async (req, res) => {
   }
 }
 
+export const getPostsByTag = async (req, res) => {
+  try {
+    const tagName = req.params.tag
+
+    console.log(tagName)
+
+    const posts = await PostModel.find({
+      tags: tagName,
+    })
+      .sort({ viewsCount: -1 })
+      .populate("user")
+      .exec()
+
+    console.log(posts)
+    res.json(posts)
+  } catch (e) {
+    console.log(e)
+    res.status(500).json({
+      message: "Failed to get posts by this tag",
+    })
+  }
+}
+
 export const getAll = async (req, res) => {
   try {
-    const posts = await PostModel.find().populate("user").exec()
+    const sortQuery = req.query
+    const defaultQuery = { sort: "createdAt", ...sortQuery }
+
+    const builder = PostModel.find({})
+    const { sort } = defaultQuery
+
+    if (sort === "viewsCount") {
+      builder.sort({ viewsCount: -1 })
+    }
+    if (sort === "createdAt") {
+      builder.sort({ createdAt: -1 })
+    }
+
+    const posts = await builder.populate("user").exec()
 
     res.json(posts)
   } catch (e) {
@@ -111,9 +148,10 @@ export const create = async (req, res) => {
       title: req.body.title,
       text: req.body.text,
       imageUrl: req.body.imageUrl,
-      tags: req.body.tags.split(","),
+      tags: req.body.tags.split(",").map((tag) => tag.trim()),
       user: req.userId,
     })
+    console.log(doc.tags)
 
     const post = await doc.save()
 
@@ -138,7 +176,7 @@ export const update = async (req, res) => {
         title: req.body.title,
         text: req.body.text,
         imageUrl: req.body.imageUrl,
-        tags: req.body.tags,
+        tags: req.body.tags.split(",").map((tag) => tag.trim()),
         user: req.userId,
       }
     )
