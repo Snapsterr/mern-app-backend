@@ -1,3 +1,4 @@
+import CommentModel from "../models/Comment.js"
 import PostModel from "../models/Post.js"
 import { frequencySort } from "../utils/frequencySort.js"
 
@@ -5,10 +6,10 @@ export const getLastTags = async (req, res) => {
   try {
     const posts = await PostModel.find().exec()
 
-    const tags = posts.map((obj) => obj.tags).flat()
-    const sortedTags = frequencySort(tags)
-      .filter((value, index, arr) => arr.indexOf(value) === index)
-      .slice(0, 5)
+    const tags = posts.map((obj) => obj.tags).flat() // move all tags into 1 array
+    const sortedTags = frequencySort(tags) // sort by frequency of use
+      .filter((value, index, arr) => arr.indexOf(value) === index) // get uniq
+      .slice(0, 5) // cut to 5 tags for show into page
 
     res.json(sortedTags)
   } catch (e) {
@@ -23,8 +24,6 @@ export const getPostsByTag = async (req, res) => {
   try {
     const tagName = req.params.tag
 
-    console.log(tagName)
-
     const posts = await PostModel.find({
       tags: tagName,
     })
@@ -32,7 +31,6 @@ export const getPostsByTag = async (req, res) => {
       .populate("user")
       .exec()
 
-    console.log(posts)
     res.json(posts)
   } catch (e) {
     console.log(e)
@@ -76,15 +74,12 @@ export const getOne = async (req, res) => {
       {
         _id: postId,
       },
-      {
-        $inc: { viewsCount: 1 },
-      },
+      { $inc: { viewsCount: 1 } },
       {
         returnDocument: "after",
       },
       (err, doc) => {
         if (err) {
-          console.log(e)
           return res.status(500).json({
             message: "Failed to get articles",
           })
@@ -95,10 +90,16 @@ export const getOne = async (req, res) => {
             message: "Article not found",
           })
         }
-
+        console.log("doc", doc)
         res.json(doc)
       }
-    ).populate("user")
+    )
+      .populate({
+        path: "comments",
+        model: "Comment",
+        populate: { path: "user", model: "User" },
+      })
+      .populate("user")
   } catch (e) {
     console.log(e)
     res.status(500).json({
@@ -107,7 +108,7 @@ export const getOne = async (req, res) => {
   }
 }
 
-export const remove = async (req, res) => {
+export const removePost = async (req, res) => {
   try {
     const postId = req.params.id
 
@@ -129,6 +130,12 @@ export const remove = async (req, res) => {
           })
         }
 
+        CommentModel.deleteMany({ post: postId }, function (err, post) {
+          if (err) {
+            res.send(err)
+          }
+        })
+
         res.json({
           success: true,
         })
@@ -142,7 +149,7 @@ export const remove = async (req, res) => {
   }
 }
 
-export const create = async (req, res) => {
+export const createPost = async (req, res) => {
   try {
     const doc = new PostModel({
       title: req.body.title,
@@ -151,7 +158,6 @@ export const create = async (req, res) => {
       tags: req.body.tags.split(",").map((tag) => tag.trim()),
       user: req.userId,
     })
-    console.log(doc.tags)
 
     const post = await doc.save()
 
@@ -164,7 +170,7 @@ export const create = async (req, res) => {
   }
 }
 
-export const update = async (req, res) => {
+export const updatePost = async (req, res) => {
   try {
     const postId = req.params.id
 

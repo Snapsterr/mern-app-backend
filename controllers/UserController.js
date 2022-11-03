@@ -1,8 +1,8 @@
 import jwt from "jsonwebtoken"
 import bcrypt from "bcrypt"
-import { validationResult } from "express-validator"
 
 import UserModel from "../models/User.js"
+import { randomAvatar } from "../utils/randomAvatar.js"
 
 export const register = async (req, res) => {
   try {
@@ -10,10 +10,12 @@ export const register = async (req, res) => {
     const salt = await bcrypt.genSalt(10)
     const hash = await bcrypt.hash(password, salt)
 
+    const avatar = randomAvatar(1, 7)
+
     const doc = new UserModel({
       email: req.body.email,
       fullName: req.body.fullName,
-      avatarUrl: req.body.avatarUrl,
+      avatarUrl: `https://mui.com/static/images/avatar/${avatar}.jpg`,
       passwordHash: hash,
     })
 
